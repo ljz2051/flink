@@ -25,6 +25,7 @@ import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.queryablestate.client.state.serialization.KvStateSerializer;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.SerializedCompositeKeyBuilder;
+import org.apache.flink.runtime.state.RestoredStateTransformer;
 import org.apache.flink.runtime.state.internal.InternalKvState;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.Preconditions;
@@ -184,12 +185,17 @@ public abstract class AbstractRocksDBState<K, N, V> implements InternalKvState<K
             DataInputDeserializer serializedOldValueInput,
             DataOutputSerializer serializedMigratedValueOutput,
             TypeSerializer<V> priorSerializer,
-            TypeSerializer<V> newSerializer)
+            TypeSerializer<V> newSerializer,
+            RestoredStateTransformer<V> stateRestoreTransformer)
             throws StateMigrationException {
 
         try {
             V value = priorSerializer.deserialize(serializedOldValueInput);
-            newSerializer.serialize(value, serializedMigratedValueOutput);
+             value = stateRestoreTransformer.filterOrTransform(value);
+             if (value != null) {
+                 newSerializer.serialize(value, serializedMigratedValueOutput);
+             }
+
         } catch (Exception e) {
             throw new StateMigrationException("Error while trying to migrate RocksDB state.", e);
         }

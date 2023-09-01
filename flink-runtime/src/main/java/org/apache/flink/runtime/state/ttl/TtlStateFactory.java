@@ -35,6 +35,7 @@ import org.apache.flink.api.common.typeutils.base.LongSerializer;
 import org.apache.flink.api.common.typeutils.base.MapSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.state.KeyedStateBackend;
+import org.apache.flink.runtime.state.RestoredStateTransformer;
 import org.apache.flink.runtime.state.StateSnapshotTransformer.StateSnapshotTransformFactory;
 import org.apache.flink.runtime.state.internal.InternalKvState;
 import org.apache.flink.util.FlinkRuntimeException;
@@ -220,7 +221,9 @@ public class TtlStateFactory<K, N, SV, TTLSV, S extends State, IS extends S> {
         OIS originalState =
                 (OIS)
                         stateBackend.createOrUpdateInternalState(
-                                namespaceSerializer, ttlDescriptor, getSnapshotTransformFactory());
+                                namespaceSerializer, ttlDescriptor,
+                                getSnapshotTransformFactory(),
+                                getStateRestoreTransformerFactory());
         return new TtlStateContext<>(
                 originalState,
                 ttlConfig,
@@ -267,6 +270,11 @@ public class TtlStateFactory<K, N, SV, TTLSV, S extends State, IS extends S> {
             return new TtlStateSnapshotTransformer.Factory<>(timeProvider, ttl);
         }
     }
+
+    private RestoredStateTransformer.RestoredStateTransformerFactory<TtlValue<SV>> getStateRestoreTransformerFactory() {
+        return new TtlStateRestoreTransformer.Factory<>(timeProvider);
+    }
+
 
     /**
      * Serializer for user state value with TTL. Visibility is public for usage with external tools.

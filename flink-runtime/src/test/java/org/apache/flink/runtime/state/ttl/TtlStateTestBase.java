@@ -169,6 +169,16 @@ public abstract class TtlStateTestBase {
         restoreSnapshot(sbetc.takeSnapshot(), numberOfKeyGroupsAfterRestore);
     }
 
+    protected void setTtlConfig(StateTtlConfig.UpdateType updateType,
+                                          StateTtlConfig.StateVisibility visibility,
+                                          long ttl) throws Exception {
+        this.ttlConfig = getConfBuilder(ttl)
+                .setUpdateType(updateType)
+                .setStateVisibility(visibility)
+                .disableCleanupInBackground()
+                .build();
+    }
+
     private void restoreSnapshot(KeyedStateHandle snapshot, int numberOfKeyGroups)
             throws Exception {
         sbetc.createAndRestoreKeyedStateBackend(numberOfKeyGroups, snapshot);
@@ -294,6 +304,28 @@ public abstract class TtlStateTestBase {
         timeProvider.time = 170;
         assertEquals(EXPIRED_AVAIL, ctx().getUpdateEmpty, ctx().get());
         assertEquals("Expired state should be cleared on access", ctx().emptyValue, ctx().get());
+    }
+
+    @Test
+    public void test() throws Exception {
+        initTest(
+                StateTtlConfig.UpdateType.OnCreateAndWrite,
+                StateTtlConfig.StateVisibility.NeverReturnExpired);
+        timeProvider.time = 0;
+        ctx().update(ctx().updateEmpty);
+
+        timeProvider.time += 50;
+        assertEquals(UNEXPIRED_AVAIL, ctx().getUpdateEmpty, ctx().get());
+
+        timeProvider.time += TTL * 2; // previous value has been expired.
+
+        setTtlConfig(
+                StateTtlConfig.UpdateType.OnCreateAndWrite,
+                StateTtlConfig.StateVisibility.NeverReturnExpired, TTL * 10);
+        takeAndRestoreSnapshot();
+
+        timeProvider.time += 1;
+        assertEquals(EXPIRED_AVAIL, ctx().emptyValue, ctx().get());
     }
 
     @Test

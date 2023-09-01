@@ -31,6 +31,7 @@ import org.apache.flink.runtime.state.KeyGroupedInternalPriorityQueue;
 import org.apache.flink.runtime.state.Keyed;
 import org.apache.flink.runtime.state.KeyedStateHandle;
 import org.apache.flink.runtime.state.PriorityComparable;
+import org.apache.flink.runtime.state.RestoredStateTransformer;
 import org.apache.flink.runtime.state.SavepointResources;
 import org.apache.flink.runtime.state.SnapshotResult;
 import org.apache.flink.runtime.state.StateSnapshotTransformer;
@@ -82,7 +83,7 @@ public class ChangelogMigrationRestoreTarget<K> implements ChangelogRestoreTarge
             throws Exception {
         InternalKvState<K, N, V> kvState =
                 keyedStateBackend.createOrUpdateInternalState(
-                        namespaceSerializer, stateDescriptor, noTransform(), true);
+                        namespaceSerializer, stateDescriptor, noTransform(), RestoredStateTransformer.RestoredStateTransformerFactory.noTransform(), true);
         ChangelogState changelogState =
                 changelogStateFactory.getExistingState(
                         stateDescriptor.getName(),
@@ -234,10 +235,11 @@ public class ChangelogMigrationRestoreTarget<K> implements ChangelogRestoreTarge
                     @Nonnull StateDescriptor<S, SV> stateDesc,
                     @Nonnull
                             StateSnapshotTransformer.StateSnapshotTransformFactory<SEV>
-                                    snapshotTransformFactory)
+                                    snapshotTransformFactory,
+                    @Nonnull RestoredStateTransformer.RestoredStateTransformerFactory<SV> restoredStateTransformerFactory)
                     throws Exception {
                 return keyedStateBackend.createOrUpdateInternalState(
-                        namespaceSerializer, stateDesc, snapshotTransformFactory);
+                        namespaceSerializer, stateDesc, snapshotTransformFactory, restoredStateTransformerFactory);
             }
 
             @Override

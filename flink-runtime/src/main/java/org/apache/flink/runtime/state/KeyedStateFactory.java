@@ -21,6 +21,7 @@ package org.apache.flink.runtime.state;
 import org.apache.flink.api.common.state.State;
 import org.apache.flink.api.common.state.StateDescriptor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.runtime.state.RestoredStateTransformer.RestoredStateTransformerFactory;
 import org.apache.flink.runtime.state.StateSnapshotTransformer.StateSnapshotTransformFactory;
 import org.apache.flink.runtime.state.internal.InternalKvState;
 
@@ -45,7 +46,10 @@ public interface KeyedStateFactory {
             @Nonnull StateDescriptor<S, SV> stateDesc)
             throws Exception {
         return createOrUpdateInternalState(
-                namespaceSerializer, stateDesc, StateSnapshotTransformFactory.noTransform());
+                namespaceSerializer,
+                stateDesc,
+                StateSnapshotTransformFactory.noTransform(),
+                RestoredStateTransformerFactory.noTransform());
     }
 
     /**
@@ -64,7 +68,8 @@ public interface KeyedStateFactory {
     <N, SV, SEV, S extends State, IS extends S> IS createOrUpdateInternalState(
             @Nonnull TypeSerializer<N> namespaceSerializer,
             @Nonnull StateDescriptor<S, SV> stateDesc,
-            @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory)
+            @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory,
+            @Nonnull RestoredStateTransformerFactory<SV> restoredStateTransformerFactory)
             throws Exception;
 
     /**
@@ -85,6 +90,7 @@ public interface KeyedStateFactory {
             @Nonnull TypeSerializer<N> namespaceSerializer,
             @Nonnull StateDescriptor<S, SV> stateDesc,
             @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory,
+            @Nonnull RestoredStateTransformerFactory<SV> restoredStateTransformerFactory,
             boolean allowFutureMetadataUpdates)
             throws Exception {
         if (allowFutureMetadataUpdates) {
@@ -92,7 +98,7 @@ public interface KeyedStateFactory {
                     this.getClass().getName() + "doesn't support to allow future metadata update");
         } else {
             return createOrUpdateInternalState(
-                    namespaceSerializer, stateDesc, snapshotTransformFactory);
+                    namespaceSerializer, stateDesc, snapshotTransformFactory, restoredStateTransformerFactory);
         }
     }
 }

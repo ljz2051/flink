@@ -40,6 +40,7 @@ import org.apache.flink.runtime.state.KeyedStateHandle;
 import org.apache.flink.runtime.state.LocalRecoveryConfig;
 import org.apache.flink.runtime.state.PriorityComparable;
 import org.apache.flink.runtime.state.RegisteredKeyValueStateBackendMetaInfo;
+import org.apache.flink.runtime.state.RestoredStateTransformer.RestoredStateTransformerFactory;
 import org.apache.flink.runtime.state.SavepointResources;
 import org.apache.flink.runtime.state.SnapshotExecutionType;
 import org.apache.flink.runtime.state.SnapshotResult;
@@ -258,6 +259,11 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                             : restoredKvMetaInfo;
 
             stateTable.setMetaInfo(restoredKvMetaInfo);
+            if (restoredKvMetaInfo.getStateTtlTime().isPresent()
+                    && restoredKvMetaInfo.getStateTtlTime().get().toMilliseconds() <  stateDesc.getTtlConfig().getTtl().toMilliseconds()) {
+                //TODO iterator all key-value data, and filter the expired data
+            }
+
         } else {
             RegisteredKeyValueStateBackendMetaInfo<N, V> newMetaInfo =
                     new RegisteredKeyValueStateBackendMetaInfo<>(
@@ -265,7 +271,8 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                             stateDesc.getName(),
                             namespaceSerializer,
                             newStateSerializer,
-                            snapshotTransformFactory);
+                            snapshotTransformFactory,
+                            stateDesc.getTtlConfig());
 
             newMetaInfo =
                     allowFutureMetadataUpdates
@@ -308,10 +315,11 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
     public <N, SV, SEV, S extends State, IS extends S> IS createOrUpdateInternalState(
             @Nonnull TypeSerializer<N> namespaceSerializer,
             @Nonnull StateDescriptor<S, SV> stateDesc,
-            @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory)
+            @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory,
+            @Nonnull RestoredStateTransformerFactory<SV> restoredStateTransformerFactory)
             throws Exception {
         return createOrUpdateInternalState(
-                namespaceSerializer, stateDesc, snapshotTransformFactory, false);
+                namespaceSerializer, stateDesc, snapshotTransformFactory, restoredStateTransformerFactory, false);
     }
 
     @Override
@@ -320,6 +328,7 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
             @Nonnull TypeSerializer<N> namespaceSerializer,
             @Nonnull StateDescriptor<S, SV> stateDesc,
             @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory,
+            @Nonnull RestoredStateTransformerFactory<SV> restoredStateTransformerFactory,
             boolean allowFutureMetadataUpdates)
             throws Exception {
         StateTable<K, N, SV> stateTable =

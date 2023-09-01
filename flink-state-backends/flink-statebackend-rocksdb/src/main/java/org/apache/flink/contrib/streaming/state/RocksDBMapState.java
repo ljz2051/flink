@@ -29,6 +29,7 @@ import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.queryablestate.client.state.serialization.KvStateSerializer;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.RegisteredKeyValueStateBackendMetaInfo;
+import org.apache.flink.runtime.state.RestoredStateTransformer;
 import org.apache.flink.runtime.state.SerializedCompositeKeyBuilder;
 import org.apache.flink.runtime.state.StateSnapshotTransformer;
 import org.apache.flink.runtime.state.internal.InternalMapState;
@@ -224,7 +225,8 @@ class RocksDBMapState<K, N, UK, UV> extends AbstractRocksDBState<K, N, Map<UK, U
             DataInputDeserializer serializedOldValueInput,
             DataOutputSerializer serializedMigratedValueOutput,
             TypeSerializer<Map<UK, UV>> priorSerializer,
-            TypeSerializer<Map<UK, UV>> newSerializer)
+            TypeSerializer<Map<UK, UV>> newSerializer,
+            RestoredStateTransformer<Map<UK, UV>> restoredStateTransformer)
             throws StateMigrationException {
 
         checkArgument(priorSerializer instanceof MapSerializer);

@@ -28,6 +28,7 @@ import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.runtime.state.ListDelimitedSerializer;
 import org.apache.flink.runtime.state.RegisteredKeyValueStateBackendMetaInfo;
+import org.apache.flink.runtime.state.RestoredStateTransformer;
 import org.apache.flink.runtime.state.StateSnapshotTransformer;
 import org.apache.flink.runtime.state.internal.InternalListState;
 import org.apache.flink.util.FlinkRuntimeException;
@@ -44,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.apache.flink.runtime.state.StateSnapshotTransformer.CollectionStateSnapshotTransformer.TransformStrategy.STOP_ON_FIRST_INCLUDED;
 
@@ -214,7 +216,8 @@ class RocksDBListState<K, N, V> extends AbstractRocksDBState<K, N, List<V>>
             DataInputDeserializer serializedOldValueInput,
             DataOutputSerializer serializedMigratedValueOutput,
             TypeSerializer<List<V>> priorSerializer,
-            TypeSerializer<List<V>> newSerializer)
+            TypeSerializer<List<V>> newSerializer,
+            RestoredStateTransformer<List<V>> restoredStateTransformer)
             throws StateMigrationException {
 
         Preconditions.checkArgument(priorSerializer instanceof ListSerializer);

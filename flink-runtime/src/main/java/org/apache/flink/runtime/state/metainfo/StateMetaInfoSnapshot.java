@@ -71,6 +71,8 @@ public class StateMetaInfoSnapshot {
          * operator state is distributed on restore
          */
         OPERATOR_STATE_DISTRIBUTION_MODE,
+        /** Key to define the state ttl of a key/value keyed-state */
+        KEYED_STATE_TTL,
     }
 
     /** Predefined keys for the most common serializer types in the meta info. */

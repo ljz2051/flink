@@ -49,6 +49,7 @@ import org.apache.flink.runtime.state.PriorityComparable;
 import org.apache.flink.runtime.state.PriorityQueueSetFactory;
 import org.apache.flink.runtime.state.RegisteredKeyValueStateBackendMetaInfo;
 import org.apache.flink.runtime.state.RegisteredStateMetaInfoBase;
+import org.apache.flink.runtime.state.RestoredStateTransformer;
 import org.apache.flink.runtime.state.SavepointResources;
 import org.apache.flink.runtime.state.SerializedCompositeKeyBuilder;
 import org.apache.flink.runtime.state.SnapshotResult;
@@ -649,6 +650,7 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                             StateDescriptor<S, SV> stateDesc,
                             TypeSerializer<N> namespaceSerializer,
                             @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory,
+                            @Nonnull RestoredStateTransformer.RestoredStateTransformerFactory<SV> restoreTransformerFactory,
                             boolean allowFutureMetadataUpdates)
                             throws Exception {
 
@@ -668,7 +670,8 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                             Tuple2.of(oldStateInfo.columnFamilyHandle, castedMetaInfo),
                             stateDesc,
                             namespaceSerializer,
-                            stateSerializer);
+                            stateSerializer,
+                            restoreTransformerFactory);
 
             newMetaInfo =
                     allowFutureMetadataUpdates
@@ -685,7 +688,8 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                             stateDesc.getName(),
                             namespaceSerializer,
                             stateSerializer,
-                            StateSnapshotTransformFactory.noTransform());
+                            StateSnapshotTransformFactory.noTransform(),
+                            stateDesc.getTtlConfig());
 
             newMetaInfo =
                     allowFutureMetadataUpdates
@@ -720,7 +724,8 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                             oldStateInfo,
                     StateDescriptor<S, SV> stateDesc,
                     TypeSerializer<N> namespaceSerializer,
-                    TypeSerializer<SV> stateSerializer)
+                    TypeSerializer<SV> stateSerializer,
+                    @Nonnull RestoredStateTransformer.RestoredStateTransformerFactory<SV> restoreTransformerFactory)
                     throws Exception {
 
         RegisteredKeyValueStateBackendMetaInfo<N, SV> restoredKvStateMetaInfo = oldStateInfo.f1;
@@ -750,7 +755,7 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
         TypeSerializerSchemaCompatibility<SV> newStateSerializerCompatibility =
                 restoredKvStateMetaInfo.updateStateSerializer(stateSerializer);
         if (newStateSerializerCompatibility.isCompatibleAfterMigration()) {
-            migrateStateValues(stateDesc, oldStateInfo);
+            migrateStateValues(stateDesc, oldStateInfo, restoreTransformerFactory.createRestoredStateTransformer(restoredKvStateMetaInfo));
         } else if (newStateSerializerCompatibility.isIncompatible()) {
             throw new StateMigrationException(
                     "The new state serializer ("
@@ -758,6 +763,11 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                             + ") must not be incompatible with the old state serializer ("
                             + previousStateSerializer
                             + ").");
+        }
+
+        if (restoredKvStateMetaInfo.getStateTtlTime().isPresent()
+                && restoredKvStateMetaInfo.getStateTtlTime().get().toMilliseconds() <  stateDesc.getTtlConfig().getTtl().toMilliseconds()) {
+            //TODO iterator all key-value data, and filter the expired data
         }
 
         return restoredKvStateMetaInfo;
@@ -771,7 +781,8 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
     @SuppressWarnings("unchecked")
     private <N, S extends State, SV> void migrateStateValues(
             StateDescriptor<S, SV> stateDesc,
-            Tuple2<ColumnFamilyHandle, RegisteredKeyValueStateBackendMetaInfo<N, SV>> stateMetaInfo)
+            Tuple2<ColumnFamilyHandle, RegisteredKeyValueStateBackendMetaInfo<N, SV>> stateMetaInfo,
+            RestoredStateTransformer<SV> restoredStateTransformer)
             throws Exception {
 
         if (stateDesc.getType() == StateDescriptor.Type.MAP) {
@@ -830,12 +841,17 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                         serializedValueInput,
                         migratedSerializedValueOutput,
                         stateMetaInfo.f1.getPreviousStateSerializer(),
-                        stateMetaInfo.f1.getStateSerializer());
+                        stateMetaInfo.f1.getStateSerializer(),
+                        restoredStateTransformer);
 
-                batchWriter.put(
-                        stateMetaInfo.f0,
-                        iterator.key(),
-                        migratedSerializedValueOutput.getCopyOfBuffer());
+                if (migratedSerializedValueOutput.length() == 0) {
+                    batchWriter.remove(stateMetaInfo.f0, iterator.key());
+                } else {
+                    batchWriter.put(
+                            stateMetaInfo.f0,
+                            iterator.key(),
+                            migratedSerializedValueOutput.getCopyOfBuffer());
+                }
 
                 migratedSerializedValueOutput.clear();
                 iterator.next();
@@ -845,6 +861,8 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
             rocksDBSnapshot.close();
         }
     }
+
+
 
     @SuppressWarnings("unchecked")
     private static <UK> boolean checkMapStateKeySchemaCompatibility(
@@ -865,10 +883,11 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
     public <N, SV, SEV, S extends State, IS extends S> IS createOrUpdateInternalState(
             @Nonnull TypeSerializer<N> namespaceSerializer,
             @Nonnull StateDescriptor<S, SV> stateDesc,
-            @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory)
+            @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory,
+            @Nonnull RestoredStateTransformer.RestoredStateTransformerFactory<SV> restoredStateTransformerFactory)
             throws Exception {
         return createOrUpdateInternalState(
-                namespaceSerializer, stateDesc, snapshotTransformFactory, false);
+                namespaceSerializer, stateDesc, snapshotTransformFactory, restoredStateTransformerFactory, false);
     }
 
     @Nonnull
@@ -877,6 +896,7 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
             @Nonnull TypeSerializer<N> namespaceSerializer,
             @Nonnull StateDescriptor<S, SV> stateDesc,
             @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory,
+            @Nonnull RestoredStateTransformer.RestoredStateTransformerFactory<SV> restoreTransformerFactory,
             boolean allowFutureMetadataUpdates)
             throws Exception {
         Tuple2<ColumnFamilyHandle, RegisteredKeyValueStateBackendMetaInfo<N, SV>> registerResult =
@@ -884,6 +904,7 @@ public class RocksDBKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                         stateDesc,
                         namespaceSerializer,
                         snapshotTransformFactory,
+                        restoreTransformerFactory,
                         allowFutureMetadataUpdates);
         if (!allowFutureMetadataUpdates) {
             // Config compact filter only when no future metadata updates

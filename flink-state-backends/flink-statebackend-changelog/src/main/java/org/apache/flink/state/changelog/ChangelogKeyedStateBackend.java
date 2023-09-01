@@ -46,6 +46,7 @@ import org.apache.flink.runtime.state.KeyedStateHandle;
 import org.apache.flink.runtime.state.PriorityComparable;
 import org.apache.flink.runtime.state.RegisteredKeyValueStateBackendMetaInfo;
 import org.apache.flink.runtime.state.RegisteredPriorityQueueStateBackendMetaInfo;
+import org.apache.flink.runtime.state.RestoredStateTransformer;
 import org.apache.flink.runtime.state.SavepointResources;
 import org.apache.flink.runtime.state.SnapshotResult;
 import org.apache.flink.runtime.state.StateSnapshotTransformer;
@@ -620,11 +621,12 @@ public class ChangelogKeyedStateBackend<K>
             @Nonnull StateDescriptor<S, SV> stateDesc,
             @Nonnull
                     StateSnapshotTransformer.StateSnapshotTransformFactory<SEV>
-                            snapshotTransformFactory)
+                            snapshotTransformFactory,
+            @Nonnull RestoredStateTransformer.RestoredStateTransformerFactory<SV> restoredStateTransformerFactory)
             throws Exception {
         InternalKvState<K, N, SV> state =
                 keyedStateBackend.createOrUpdateInternalState(
-                        namespaceSerializer, stateDesc, snapshotTransformFactory);
+                        namespaceSerializer, stateDesc, snapshotTransformFactory, restoredStateTransformerFactory);
         ChangelogState changelogState =
                 changelogStateFactory.getExistingState(
                         stateDesc.getName(), BackendStateType.KEY_VALUE);
@@ -657,7 +659,8 @@ public class ChangelogKeyedStateBackend<K>
                         state.getNamespaceSerializer(),
                         state.getValueSerializer(),
                         (StateSnapshotTransformer.StateSnapshotTransformFactory<SV>)
-                                snapshotTransformFactory);
+                                snapshotTransformFactory,
+                        stateDesc.getTtlConfig());
 
         AbstractChangelogState<K, N, SV, IS> kvChangelogState =
                 (AbstractChangelogState<K, N, SV, IS>) changelogState;
@@ -682,7 +685,8 @@ public class ChangelogKeyedStateBackend<K>
                         state.getNamespaceSerializer(),
                         state.getValueSerializer(),
                         (StateSnapshotTransformer.StateSnapshotTransformFactory<SV>)
-                                snapshotTransformFactory);
+                                snapshotTransformFactory,
+                        stateDesc.getTtlConfig());
 
         KvStateChangeLoggerImpl<K, SV, N> kvStateChangeLogger =
                 new KvStateChangeLoggerImpl<>(
@@ -898,7 +902,7 @@ public class ChangelogKeyedStateBackend<K>
                     throws Exception {
                 InternalKvState<K, N, V> kvState =
                         keyedStateBackend.createOrUpdateInternalState(
-                                namespaceSerializer, stateDescriptor, noTransform(), true);
+                                namespaceSerializer, stateDescriptor, noTransform(), RestoredStateTransformer.RestoredStateTransformerFactory.noTransform(), true);
                 ChangelogState changelogState =
                         changelogStateFactory.getExistingState(
                                 stateDescriptor.getName(),

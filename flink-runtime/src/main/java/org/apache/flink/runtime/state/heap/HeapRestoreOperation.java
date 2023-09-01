@@ -217,6 +217,8 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
             try (InputStream kgCompressionInStream =
                     streamCompressionDecorator.decorateWithCompression(fsDataInputStream)) {
 
+                registeredKVStates.get(kvStatesById.get("")).metaInfo.getStateSnapshotTransformFactory().createForDeserializedState().get().filterOrTransform()
+
                 readKeyGroupStateData(
                         kgCompressionInStream, kvStatesById, keyGroupIndex, numStates, readVersion);
             }

@@ -19,6 +19,8 @@
 package org.apache.flink.runtime.state;
 
 import org.apache.flink.api.common.state.StateDescriptor;
+import org.apache.flink.api.common.state.StateTtlConfig;
+import org.apache.flink.api.common.time.Time;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSchemaCompatibility;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
@@ -30,9 +32,10 @@ import org.apache.flink.util.Preconditions;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Compound meta information for a registered state in a keyed state backend. This combines all
@@ -47,6 +50,7 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
     @Nonnull private final StateSerializerProvider<N> namespaceSerializerProvider;
     @Nonnull private final StateSerializerProvider<S> stateSerializerProvider;
     @Nonnull private StateSnapshotTransformFactory<S> stateSnapshotTransformFactory;
+    @Nullable private final Time stateTtlTime;
 
     public RegisteredKeyValueStateBackendMetaInfo(
             @Nonnull StateDescriptor.Type stateType,
@@ -59,7 +63,8 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
                 name,
                 StateSerializerProvider.fromNewRegisteredSerializer(namespaceSerializer),
                 StateSerializerProvider.fromNewRegisteredSerializer(stateSerializer),
-                StateSnapshotTransformFactory.noTransform());
+                StateSnapshotTransformFactory.noTransform(),
+                null);
     }
 
     public RegisteredKeyValueStateBackendMetaInfo(
@@ -67,14 +72,16 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
             @Nonnull String name,
             @Nonnull TypeSerializer<N> namespaceSerializer,
             @Nonnull TypeSerializer<S> stateSerializer,
-            @Nonnull StateSnapshotTransformFactory<S> stateSnapshotTransformFactory) {
+            @Nonnull StateSnapshotTransformFactory<S> stateSnapshotTransformFactory,
+            @Nonnull StateTtlConfig stateTtlConfig) {
 
         this(
                 stateType,
                 name,
                 StateSerializerProvider.fromNewRegisteredSerializer(namespaceSerializer),
                 StateSerializerProvider.fromNewRegisteredSerializer(stateSerializer),
-                stateSnapshotTransformFactory);
+                stateSnapshotTransformFactory,
+                stateTtlConfig.isEnabled() ? stateTtlConfig.getTtl() : null);
     }
 
     @SuppressWarnings("unchecked")
@@ -96,7 +103,14 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
                                         snapshot.getTypeSerializerSnapshot(
                                                 StateMetaInfoSnapshot.CommonSerializerKeys
                                                         .VALUE_SERIALIZER))),
-                StateSnapshotTransformFactory.noTransform());
+                StateSnapshotTransformFactory.noTransform(),
+
+                (snapshot.getOption(StateMetaInfoSnapshot.CommonOptionsKeys.KEYED_STATE_TTL) != null)
+                        ? Time.milliseconds(
+                                Long.parseLong(
+                                        Preconditions.checkNotNull(
+                                                snapshot.getOption(StateMetaInfoSnapshot.CommonOptionsKeys.KEYED_STATE_TTL))))
+                        : null);
 
         Preconditions.checkState(
                 StateMetaInfoSnapshot.BackendStateType.KEY_VALUE == snapshot.getBackendStateType());
@@ -107,18 +121,24 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
             @Nonnull String name,
             @Nonnull StateSerializerProvider<N> namespaceSerializerProvider,
             @Nonnull StateSerializerProvider<S> stateSerializerProvider,
-            @Nonnull StateSnapshotTransformFactory<S> stateSnapshotTransformFactory) {
+            @Nonnull StateSnapshotTransformFactory<S> stateSnapshotTransformFactory,
+            @Nullable Time stateTtlTime) {
 
         super(name);
         this.stateType = stateType;
         this.namespaceSerializerProvider = namespaceSerializerProvider;
         this.stateSerializerProvider = stateSerializerProvider;
         this.stateSnapshotTransformFactory = stateSnapshotTransformFactory;
+        this.stateTtlTime = stateTtlTime;
     }
 
     @Nonnull
     public StateDescriptor.Type getStateType() {
         return stateType;
+    }
+
+    public Optional<Time> getStateTtlTime() {
+        return stateTtlTime != null ? Optional.of(stateTtlTime) : Optional.empty();
     }
 
     @Nonnull
@@ -258,10 +278,12 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
 
     @Nonnull
     private StateMetaInfoSnapshot computeSnapshot() {
-        Map<String, String> optionsMap =
-                Collections.singletonMap(
-                        StateMetaInfoSnapshot.CommonOptionsKeys.KEYED_STATE_TYPE.toString(),
-                        stateType.toString());
+        Map<String, String> optionsMap = new HashMap<>(2);
+        optionsMap.put(StateMetaInfoSnapshot.CommonOptionsKeys.KEYED_STATE_TYPE.toString(), stateType.toString());
+        if  (stateTtlTime != null) {
+            optionsMap.put(StateMetaInfoSnapshot.CommonOptionsKeys.KEYED_STATE_TTL.toString(),
+                    String.valueOf(stateTtlTime.toMilliseconds()));
+        }
         Map<String, TypeSerializer<?>> serializerMap = CollectionUtil.newHashMapWithExpectedSize(2);
         Map<String, TypeSerializerSnapshot<?>> serializerConfigSnapshotsMap =
                 CollectionUtil.newHashMapWithExpectedSize(2);
