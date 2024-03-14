@@ -289,6 +289,13 @@ public class RocksIncrementalSnapshotStrategy<K>
                                 tmpResourcesRegistry,
                                 reusedHandle);
 
+                LOG.info("start sleep for checkpoint {}", checkpointId);
+                try {
+                    Thread.sleep(10000);
+                } catch (InterruptedException ignore) {
+                }
+                LOG.info("end sleep for checkpoint {}", checkpointId);
+
                 // We make the 'sstFiles' as the 'sharedState' in IncrementalRemoteKeyedStateHandle,
                 // whether they belong to the sharded CheckpointedStateScope or exclusive
                 // CheckpointedStateScope.
@@ -320,7 +327,7 @@ public class RocksIncrementalSnapshotStrategy<K>
                                 .orElseGet(() -> SnapshotResult.of(jmIncrementalKeyedStateHandle));
 
                 completed = true;
-
+                LOG.info("complete checkpoint {}", checkpointId);
                 return snapshotResult;
             } finally {
                 if (!completed) {

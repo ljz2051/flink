@@ -189,7 +189,7 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
 
             // finalize the async part of all by executing all snapshot runnables
             OperatorSnapshotFinalizer finalizedSnapshots =
-                    new OperatorSnapshotFinalizer(snapshotInProgress);
+                    new OperatorSnapshotFinalizer(snapshotInProgress, taskName, checkpointMetaData.getCheckpointId());
 
             jobManagerTaskOperatorSubtaskStates.putSubtaskStateByOperatorID(
                     operatorID, finalizedSnapshots.getJobManagerOwnedState());
@@ -404,7 +404,7 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
     }
 
     private void logFailedCleanupAttempt() {
-        LOG.debug(
+        LOG.info(
                 "{} - asynchronous checkpointing operation for checkpoint {} has "
                         + "already been completed. Thus, the state handles are not cleaned up.",
                 taskName,
