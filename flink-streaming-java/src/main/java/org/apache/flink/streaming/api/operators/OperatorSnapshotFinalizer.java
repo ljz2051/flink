@@ -49,6 +49,11 @@ public class OperatorSnapshotFinalizer {
 
     public OperatorSnapshotFinalizer(@Nonnull OperatorSnapshotFutures snapshotFutures)
             throws ExecutionException, InterruptedException {
+        this(snapshotFutures, "Unknown");
+    }
+
+    public OperatorSnapshotFinalizer(@Nonnull OperatorSnapshotFutures snapshotFutures, String taskName)
+            throws ExecutionException, InterruptedException {
 
         SnapshotResult<KeyedStateHandle> keyedManaged =
                 FutureUtils.runIfNotDoneAndGet(snapshotFutures.getKeyedStateManagedFuture());
@@ -58,6 +63,11 @@ public class OperatorSnapshotFinalizer {
 
         SnapshotResult<OperatorStateHandle> operatorManaged =
                 FutureUtils.runIfNotDoneAndGet(snapshotFutures.getOperatorStateManagedFuture());
+
+        Thread.sleep(5000);
+        if (taskName.contains("Source")) {
+            throw new RuntimeException("Source Mock Exception");
+        }
 
         SnapshotResult<OperatorStateHandle> operatorRaw =
                 FutureUtils.runIfNotDoneAndGet(snapshotFutures.getOperatorStateRawFuture());

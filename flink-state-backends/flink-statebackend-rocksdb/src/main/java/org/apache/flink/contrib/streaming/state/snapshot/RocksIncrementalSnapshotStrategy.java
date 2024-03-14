@@ -285,6 +285,8 @@ public class RocksIncrementalSnapshotStrategy<K>
                                 snapshotCloseableRegistry,
                                 tmpResourcesRegistry);
 
+                Thread.sleep(10000);
+
                 // We make the 'sstFiles' as the 'sharedState' in IncrementalRemoteKeyedStateHandle,
                 // whether they belong to the sharded CheckpointedStateScope or exclusive
                 // CheckpointedStateScope.

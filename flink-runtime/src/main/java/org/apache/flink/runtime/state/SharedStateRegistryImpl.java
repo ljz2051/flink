@@ -83,6 +83,7 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
             final StreamStateHandle newHandle,
             final long checkpointID,
             final boolean preventDiscardingCreatedCheckpoint) {
+        LOG.info("RegisteredStates {}", registeredStates);
 
         checkNotNull(newHandle, "State handle should not be null.");
 

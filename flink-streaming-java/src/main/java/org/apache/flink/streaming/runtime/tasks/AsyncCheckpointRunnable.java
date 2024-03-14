@@ -189,7 +189,7 @@ final class AsyncCheckpointRunnable implements Runnable, Closeable {
 
             // finalize the async part of all by executing all snapshot runnables
             OperatorSnapshotFinalizer finalizedSnapshots =
-                    new OperatorSnapshotFinalizer(snapshotInProgress);
+                    new OperatorSnapshotFinalizer(snapshotInProgress, taskName);
 
             jobManagerTaskOperatorSubtaskStates.putSubtaskStateByOperatorID(
                     operatorID, finalizedSnapshots.getJobManagerOwnedState());
